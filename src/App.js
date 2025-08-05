@@ -1,76 +1,91 @@
-import React, { useState } from "react";
-import { MapContainer, TileLayer, Marker, useMapEvents, Polyline } from "react-leaflet";
-import "leaflet/dist/leaflet.css";
-import L from "leaflet";
+import React, { useState } from 'react';
+import { MapContainer, TileLayer, Marker, Polyline, useMapEvents } from 'react-leaflet';
+import L from 'leaflet';
+import 'leaflet/dist/leaflet.css';
+import axios from 'axios';
 
-// Optional: Fix marker icon issue in Leaflet
-delete L.Icon.Default.prototype._getIconUrl;
-L.Icon.Default.mergeOptions({
-  iconRetinaUrl: require("leaflet/dist/images/marker-icon-2x.png"),
-  iconUrl: require("leaflet/dist/images/marker-icon.png"),
-  shadowUrl: require("leaflet/dist/images/marker-shadow.png"),
-});
+const center = [28.6448, 77.216721]; // Default to Delhi
 
-const App = () => {
+function LocationSelector({ setStart, setEnd, start, end }) {
+  useMapEvents({
+    click(e) {
+      const { lat, lng } = e.latlng;
+      if (!start) {
+        setStart([lat, lng]);
+      } else if (!end) {
+        setEnd([lat, lng]);
+      }
+    },
+  });
+  return null;
+}
+
+function App() {
   const [start, setStart] = useState(null);
   const [end, setEnd] = useState(null);
   const [path, setPath] = useState([]);
-  const [selectingStart, setSelectingStart] = useState(true);
-  const [selectedAlgorithm, setSelectedAlgorithm] = useState("dijkstra");
+  const [algorithm, setAlgorithm] = useState('dijkstra');
 
-  // 🟢 Simulated pathfinding function (replace with actual Dijkstra or A*)
-  const simulatePathfinding = () => {
-    if (start && end) {
-      setPath([start, end]); // Placeholder line
+  const getRoute = async () => {
+    if (!start || !end) return alert('Select both Start and End points on map.');
+
+    const apiKey = process.env.REACT_APP_ORS_API_KEY;
+    const url = `https://api.openrouteservice.org/v2/directions/driving-car`;
+
+    try {
+      const response = await axios.post(
+        url,
+        {
+          coordinates: [ [start[1], start[0]], [end[1], end[0]] ]
+        },
+        {
+          headers: {
+            Authorization: apiKey,
+            'Content-Type': 'application/json',
+          },
+        }
+      );
+
+      const routeCoords = response.data.features[0].geometry.coordinates.map(coord => [coord[1], coord[0]]);
+      setPath(routeCoords);
+    } catch (error) {
+      console.error('Error fetching route:', error);
+      alert('Failed to fetch route');
     }
   };
 
-  const LocationSelector = () => {
-    useMapEvents({
-      click(e) {
-        const { lat, lng } = e.latlng;
-        if (selectingStart) {
-          setStart([lat, lng]);
-        } else {
-          setEnd([lat, lng]);
-        }
-      },
-    });
-    return null;
+  const reset = () => {
+    setStart(null);
+    setEnd(null);
+    setPath([]);
   };
 
   return (
     <div>
-      <h2 style={{ textAlign: "center" }}>Shortest Path Visualizer</h2>
+      <h2 style={{ textAlign: 'center' }}>Shortest Path Visualizer (Real Map)</h2>
 
-      {/* 🧭 Algorithm Selector (FR03) */}
-      <div style={{ padding: "10px", textAlign: "center" }}>
-        <label>Select Algorithm: </label>
-        <select value={selectedAlgorithm} onChange={(e) => setSelectedAlgorithm(e.target.value)}>
+      <div style={{ textAlign: 'center', margin: '10px' }}>
+        <select value={algorithm} onChange={(e) => setAlgorithm(e.target.value)}>
           <option value="dijkstra">Dijkstra</option>
           <option value="astar">A*</option>
-          <option value="bfs">BFS</option>
         </select>
-        <br />
-        <button onClick={() => setSelectingStart(true)}>Set Start Location</button>
-        <button onClick={() => setSelectingStart(false)}>Set End Location</button>
-        <br />
-        <button onClick={simulatePathfinding}>Find Path</button>
+        <button onClick={getRoute} style={{ marginLeft: '10px' }}>Find Path</button>
+        <button onClick={reset} style={{ marginLeft: '10px' }}>Reset</button>
       </div>
 
-      {/* 🗺️ Map Component (FR01) */}
-      <MapContainer center={[28.6139, 77.2090]} zoom={13} style={{ height: "80vh", width: "100%" }}>
+      <MapContainer center={center} zoom={13} style={{ height: '90vh', width: '100%' }}>
         <TileLayer
-          attribution='&copy; <a href="https://osm.org/">OpenStreetMap</a> contributors'
           url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
+          attribution="© OpenStreetMap contributors"
         />
-        <LocationSelector />
-        {start && <Marker position={start}></Marker>}
-        {end && <Marker position={end}></Marker>}
-        {path.length > 1 && <Polyline positions={path} color="blue" />}
+        <LocationSelector setStart={setStart} setEnd={setEnd} start={start} end={end} />
+
+        {start && <Marker position={start} icon={L.icon({ iconUrl: 'https://maps.google.com/mapfiles/ms/icons/green-dot.png', iconSize: [32, 32] })} />}
+        {end && <Marker position={end} icon={L.icon({ iconUrl: 'https://maps.google.com/mapfiles/ms/icons/red-dot.png', iconSize: [32, 32] })} />}
+        {path.length > 0 && <Polyline positions={path} color="blue" />}
       </MapContainer>
     </div>
   );
-};
+}
 
 export default App;
