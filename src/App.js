@@ -46,8 +46,9 @@ const App = () => {
         }
       );
 
+      // Get coordinates from geojson
       const coords = response.data.features[0].geometry.coordinates;
-      const formatted = coords.map(([lng, lat]) => [lat, lng]);
+      const formatted = coords.map(([lng, lat]) => [lat, lng]); // Flip to Leaflet [lat, lng]
       setPath(formatted);
     } catch (error) {
       console.error('Error fetching route:', error);
